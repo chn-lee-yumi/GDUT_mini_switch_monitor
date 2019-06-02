@@ -61,13 +61,12 @@ def api_warning():
         except:
             return json.dumps({"code": -1})
     switch_down_list = []
-    # print(warnings)
     # 整理数据
     status = {}
     for b in building_list:  # 初始化掉线数量
         status[b] = 0
     for warn in warnings:
-        if warn["warning"] == "deivces_down":
+        if warn["warning"] == "devices_down":
             switch_down_list.append(warn['ip'])
             if warn["model"] == "全部设备":
                 status[warn['building']] = -1
