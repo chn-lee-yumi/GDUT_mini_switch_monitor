@@ -103,7 +103,7 @@ def api_query():
                 session = Drcom.login()
                 vlan_info = Drcom.get_vlan(number, session)
             except:
-                logging.WARNING("Drcom错误：查询学号为 " + number + " 客户端IP： " + client_ip)
+                logging.WARNING("Drcom错误：查询学号为 %s 客户端IP： %s" % (number, client_ip))
                 vlan_cache[number] = [0, 0]
                 return json.dumps({'code': 0, 'status': 'unknown'})
         # 写入缓存
