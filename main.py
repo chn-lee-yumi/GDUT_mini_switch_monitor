@@ -8,7 +8,7 @@ import time
 import logging
 from datetime import timedelta
 
-logging.basicConfig(level=logging.INFO, filename='/var/log/mini_monitor.log', filemode='a',
+logging.basicConfig(level=logging.WARNING, filename='/var/log/mini_monitor.log', filemode='a',
                     format='%(levelname)s: %(message)s')
 
 app = Flask(__name__)
@@ -41,6 +41,8 @@ ip_cache = {}
 @app.route("/")
 @limiter.exempt
 def index():
+    client_ip = request.headers['X-Forwarded-For']
+    logging.warning("/ %s" % client_ip)
     return app.send_static_file("index.html")
 
 
@@ -48,6 +50,8 @@ def index():
 @limiter.exempt
 def api_warning():
     global token, switch_down_list, warning_cache, warning_cache_time, warning_expire
+    client_ip = request.headers['X-Forwarded-For']
+    logging.warning("api/warning %s" % client_ip)
     # 检查缓存
     if time.time() - warning_expire < warning_cache_time:
         return json.dumps(warning_cache)
@@ -83,6 +87,7 @@ def api_query():
     global session, token, switch_down_list, vlan_cache, vlan_cache_time, vlan_expire, ip_cache
     number = request.args.get('number')
     client_ip = request.headers['X-Forwarded-For']
+    logging.warning("api/query %s %s" % (number, client_ip))
     # 检查学号范围
     try:
         if not (1129999999 > int(number) > 1110000000 or 2111999999 > int(number) > 2111000000 or 3230000000 > int(
@@ -98,12 +103,16 @@ def api_query():
         # 登录drcom获取学号绑定的vlan
         try:
             vlan_info = Drcom.get_vlan(number, session)
+        except IndexError:
+            logging.warning("api/query error %s %s" % (number, client_ip))
+            vlan_cache[number] = [0, 0]
+            return json.dumps({'code': 0, 'status': 'unknown'})
         except:
             try:
                 session = Drcom.login()
                 vlan_info = Drcom.get_vlan(number, session)
             except:
-                logging.WARNING("Drcom错误：查询学号为 %s 客户端IP： %s" % (number, client_ip))
+                logging.warning("api/query error %s %s" % (number, client_ip))  # TODO:重复代码简化
                 vlan_cache[number] = [0, 0]
                 return json.dumps({'code': 0, 'status': 'unknown'})
         # 写入缓存
@@ -146,6 +155,8 @@ def api_query():
 @app.route("/api/clear_ip_cache")
 def api_clear_ip_cache():
     global ip_cache
+    client_ip = request.headers['X-Forwarded-For']
+    logging.error("api/clear_ip_cache %s" % client_ip)
     ip_cache = {}
     return "OK"
 
