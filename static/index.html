@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>广东工业大学交换机状态（公测版）</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+    <script src="https://cdn.bootcss.com/axios/0.19.0-beta.1/axios.min.js"></script>
+    <link href="https://cdn.bootcss.com/twitter-bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container" id="app">
+
+    <div class="row">
+        <div class="card-body">
+            <h2>状态查询</h2>
+            <div class="form-group">
+                <label>输入学号查询所在交换机状态</label>
+                <input class="form-control" type="text" name="number" v-model="number" placeholder="请输入学号"/>
+            </div>
+            <button class="btn btn-primary" v-on:click="queryStatus" :disabled="btn_disabled">查询</button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="card-body">
+            <h2>各楼栋状态</h2>
+            <label v-model="data_time">数据获取时间：{{getLocalTime(data_time)}} (每分钟更新)</label>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                    <tr>
+                        <th>楼栋</th>
+                        <th>状态</th>
+                        <th>描述</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="b in buildings" class="el-table__row">
+                        <td>{{b}}</td>
+                        <td>
+                            <i v-if="building_status[b] == 0"
+                               style="width:20px;height:20px;border-radius:50%;background-color:green;display: block"></i>
+                            <i v-else-if="building_status[b] == -1"
+                               style="width:20px;height:20px;border-radius:50%;background-color:red;display: block"></i>
+                            <i v-else
+                               style="width:20px;height:20px;border-radius:50%;background-color:orange;display: block"></i>
+                        </td>
+                        <td v-if="building_status[b] == 0">状态正常</td>
+                        <td v-else-if="building_status[b] == -1">全部掉线</td>
+                        <td v-else>掉线{{building_status[b]}}台</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="card-body">
+            <h2>关于</h2>
+            <p>本应用供学生查询交换机状态，如遇交换机掉线，<strong>无须报障</strong>，网络中心将尽快修复，感谢您的理解。</p>
+            <footer class="footer">广工大网管队技术组研发。
+                <!--本项目采用GPLv3协议发布，项目地址：https://github.com/chn-lee-yumi/GDUT_mini_switch_monitor--></footer>
+        </div>
+    </div>
+
+</div>
+
+
+<script type="text/javascript">
+    console.log("现在校园网运维外包给点易啦，学生网管只是做点文职工作(类似客服)。求不屌我们学生QwQ");
+
+    function getLocalTime(t) {
+        var date = new Date(t*1000);
+        Y = date.getFullYear() + '-';
+        M = (date.getMonth()+1 < 10 ? '0'+(date.getMonth()+1) : date.getMonth()+1) + '-';
+        D = (date.getDate() < 10 ? '0'+date.getDate() : date.getDate()) + ' ';
+        h = (date.getHours() < 10 ? '0'+date.getHours() : date.getHours()) + ':';
+        m = (date.getMinutes() < 10 ? '0'+date.getMinutes() : date.getMinutes()) + ':';
+        s = date.getSeconds() < 10 ? '0'+date.getSeconds() : date.getSeconds();
+        return Y+M+D+h+m+s;
+    }
+
+    var app = new Vue({
+      el: '#app',
+      data: {
+           buildings:[],
+           building_status:[],
+           number: "",
+           btn_disabled: false,
+           data_time: 0
+      },
+      mounted:function (){
+        this.updateWarning();
+        this.timer = setInterval(this.updateWarning, 60000);
+      },
+      methods: {
+          updateWarning: function () {
+              var that=this;
+              axios.get('/api/warning')
+                  .then(function (response) {
+                    //console.log(response);
+                    if(response["data"]["code"]==0){
+                        that.buildings=response["data"]["buildings"];
+                        that.building_status=response["data"]["status"];
+                        that.data_time=response["data"]["time"];
+                    }else{
+                        alert("服务器返回错误码："+response["data"]["code"])
+                    }
+                  })
+                  .catch(function (error) {
+                    console.log(error);
+                  });
+          },
+          queryStatus: function () {
+            if(this.number.length<10 || this.number.length>11){
+                alert("学号长度错误，请检查")
+                return
+            }
+            this.btn_disabled=true
+            var that=this;
+            axios.get('/api/query', {
+                params: {
+                  number: that.number
+                }
+              })
+              .then(function (response) {
+                //console.log(response);
+                if(response["data"]["code"]==0){
+                    if(response["data"]["status"]=="up") alert("你所在的交换机运行状态正常");
+                    if(response["data"]["status"]=="down") alert("你所在的交换机已掉线");
+                    if(response["data"]["status"]=="unknown") alert("你的账号没有绑定交换机，可能你清除绑定后没有再登录过，或没有开户，或学号输入错误");
+                }else{
+                    alert("服务器返回错误码："+response["data"]["code"])
+                }
+              })
+              .catch(function (error) {
+                if(error.response.status==429){
+                    alert("当前查询人数太多，请稍后再试。")
+                }else{
+                    alert("错误信息："+error)
+                }
+              })
+              .finally(function () {
+                that.btn_disabled=false
+              })
+          }
+      }
+    })
+
+</script>
+<style>
+.card-body {
+    padding: 0.75rem;
+}
+.table {
+    margin-bottom: 0rem;
+}
+footer {
+    color: #666;
+    font-size: 0.75rem;
+}
+
+</style>
+</body>
+</html>
